@@ -19,7 +19,6 @@
     "next": "latest",
     "react": "latest",
     "react-dom": "latest",
-    "react-markdown": "latest",
     "zod": "latest"
   },
   "devDependencies": {
