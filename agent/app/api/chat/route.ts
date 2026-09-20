@@ -118,7 +118,7 @@ export async function POST(request: Request) {
       stage = 'gemini'
 
       return generateText({
-        model: google('gemini-3.6-flash'),
+        model: google('gemini-3.5-flash-lite'),
         system: instructions,
         prompt: parsed.data.question,
         tools,
