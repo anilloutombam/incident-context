@@ -12,8 +12,9 @@ confirmed evidence separate from inference.
 
 ### Evidence report
 
-The agent traces linked operational records, separates confirmed evidence from inference, recommends
-a next step, and returns the Sanity Context sources behind the report.
+The agent turns linked operational records into a visible relationship trail, shows evidence,
+inference, and source counts, recommends a next step, and preserves the Sanity Context source paths
+behind the report.
 
 ![Completed Incident Context evidence report](docs/images/incident-report.png)
 

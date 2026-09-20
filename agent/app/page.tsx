@@ -1,7 +1,20 @@
 'use client'
 
 import {FormEvent, useEffect, useRef, useState} from 'react'
-import ReactMarkdown from 'react-markdown'
+
+type InvestigationReport = {
+  answer: string
+  evidenceTrail: Array<{
+    from: string
+    relationship: string
+    to: string
+    source: string
+  }>
+  confirmedEvidence: string[]
+  inferences: string[]
+  recommendedNextStep: string
+  sources: Array<{label: string; path: string}>
+}
 
 const starterQuestions = [
   'What changed before INC-208?',
@@ -11,6 +24,13 @@ const starterQuestions = [
 ]
 
 const MAX_QUESTION_LENGTH = 500
+
+function plainText(value: string) {
+  return value
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .trim()
+}
 
 const progressSteps = [
   {after: 0, label: 'Connecting to the knowledge base'},
@@ -22,7 +42,7 @@ const progressSteps = [
 
 export default function Home() {
   const [question, setQuestion] = useState(starterQuestions[0])
-  const [answer, setAnswer] = useState('')
+  const [report, setReport] = useState<InvestigationReport | null>(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [elapsed, setElapsed] = useState(0)
@@ -50,7 +70,7 @@ export default function Home() {
     if (!prompt || loading) return
 
     setLoading(true)
-    setAnswer('')
+    setReport(null)
     setError('')
     reportRef.current?.scrollTo({top: 0})
 
@@ -60,7 +80,11 @@ export default function Home() {
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({question: prompt}),
       })
-      const data = (await response.json()) as {answer?: string; error?: string; retryAt?: string}
+      const data = (await response.json()) as {
+        report?: InvestigationReport
+        error?: string
+        retryAt?: string
+      }
       if (!response.ok) {
         const resetTime = data.retryAt
           ? new Date(data.retryAt).toLocaleTimeString([], {
@@ -73,7 +97,8 @@ export default function Home() {
           `${data.error || 'The investigation failed.'}${resetTime ? ` Available again around ${resetTime}.` : ''}`,
         )
       }
-      setAnswer(data.answer || 'No answer was returned.')
+      if (!data.report) throw new Error('No evidence report was returned.')
+      setReport(data.report)
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'The investigation failed.')
     } finally {
@@ -151,12 +176,12 @@ export default function Home() {
               <span className="section-label">Evidence report</span>
               <span className="report-subtitle">Facts, inferences, and sources</span>
             </div>
-            <span className={`report-state ${loading ? 'running' : error ? 'failed' : answer ? 'complete' : ''}`}>
-              {loading ? 'Running' : error ? 'Needs attention' : answer ? 'Complete' : 'No report'}
+            <span className={`report-state ${loading ? 'running' : error ? 'failed' : report ? 'complete' : ''}`}>
+              {loading ? 'Running' : error ? 'Needs attention' : report ? 'Complete' : 'No report'}
             </span>
           </header>
           <section className="report-scroll" ref={reportRef}>
-          {!answer && !error && !loading && (
+          {!report && !error && !loading && (
             <div className="empty">
               <span className="empty-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24"><path d="M4 5h16M4 12h10M4 19h7" /></svg>
@@ -187,9 +212,66 @@ export default function Home() {
               <button type="button" onClick={() => setError('')}>Dismiss</button>
             </div>
           )}
-          {answer && (
-            <div className="answer">
-              <ReactMarkdown>{answer}</ReactMarkdown>
+          {report && (
+            <div className="report-content">
+              <section className="evidence-overview" aria-labelledby="evidence-trail-title">
+                <div className="evidence-overview-header">
+                  <div>
+                    <span className="section-label">Relationship trace</span>
+                    <h2 id="evidence-trail-title">Evidence trail</h2>
+                  </div>
+                  <dl className="evidence-counts">
+                    <div><dt>Evidence</dt><dd>{report.confirmedEvidence.length}</dd></div>
+                    <div><dt>Inferences</dt><dd>{report.inferences.length}</dd></div>
+                    <div><dt>Sources</dt><dd>{report.sources.length}</dd></div>
+                  </dl>
+                </div>
+                {report.evidenceTrail.length > 0 ? (
+                  <ol className="trail-list">
+                    {report.evidenceTrail.map((edge, index) => (
+                      <li key={`${edge.from}-${edge.relationship}-${edge.to}-${index}`}>
+                        <div className="trail-edge">
+                          <span className="trail-node">{plainText(edge.from)}</span>
+                          <span className="trail-relation"><i>→</i>{plainText(edge.relationship)}</span>
+                          <span className="trail-node">{plainText(edge.to)}</span>
+                        </div>
+                        <code>{plainText(edge.source)}</code>
+                      </li>
+                    ))}
+                  </ol>
+                ) : (
+                  <p className="trail-empty">No explicit relationship path was required for this answer.</p>
+                )}
+              </section>
+
+              <div className="answer">
+                <section>
+                  <h2><span>1</span>Answer</h2>
+                  <p>{plainText(report.answer)}</p>
+                </section>
+                <section>
+                  <h2><span>2</span>Confirmed evidence</h2>
+                  <ul>{report.confirmedEvidence.map((item) => <li key={item}>{plainText(item)}</li>)}</ul>
+                </section>
+                <section>
+                  <h2><span>3</span>Inferences</h2>
+                  {report.inferences.length > 0
+                    ? <ul>{report.inferences.map((item) => <li key={item}>{plainText(item)}</li>)}</ul>
+                    : <p className="muted-answer">No inference was required for this answer.</p>}
+                </section>
+                <section>
+                  <h2><span>4</span>Recommended next step</h2>
+                  <p>{plainText(report.recommendedNextStep)}</p>
+                </section>
+                <section>
+                  <h2><span>5</span>Sources</h2>
+                  <ul className="source-list">
+                    {report.sources.map((source) => (
+                      <li key={source.path}><strong>{plainText(source.label)}</strong><code>{plainText(source.path)}</code></li>
+                    ))}
+                  </ul>
+                </section>
+              </div>
             </div>
           )}
           </section>

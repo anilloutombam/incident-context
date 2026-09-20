@@ -1,6 +1,6 @@
 import {google} from '@ai-sdk/google'
 import {createMCPClient} from '@ai-sdk/mcp'
-import {generateText, stepCountIs} from 'ai'
+import {generateText, Output, stepCountIs} from 'ai'
 import {NextResponse} from 'next/server'
 import {z} from 'zod'
 import {checkRateLimit, getClientKey} from '../../../lib/rateLimit'
@@ -12,6 +12,31 @@ const REQUEST_TIMEOUT_MS = 30_000
 
 const requestSchema = z.object({
   question: z.string().trim().min(1).max(MAX_QUESTION_LENGTH),
+})
+
+const reportSchema = z.object({
+  answer: z.string().describe('A concise, direct answer to the investigation question.'),
+  evidenceTrail: z
+    .array(
+      z.object({
+        from: z.string().describe('The source record or entity.'),
+        relationship: z.string().describe('A short relationship label, such as affected or deployed.'),
+        to: z.string().describe('The linked record or entity.'),
+        source: z.string().describe('The knowledge base source path supporting this relationship.'),
+      }),
+    )
+    .max(8),
+  confirmedEvidence: z.array(z.string()).max(8),
+  inferences: z.array(z.string()).max(5),
+  recommendedNextStep: z.string(),
+  sources: z
+    .array(
+      z.object({
+        label: z.string().describe('A concise human-readable source label.'),
+        path: z.string().describe('The exact source path returned by the knowledge base.'),
+      }),
+    )
+    .max(10),
 })
 
 class RequestTimeoutError extends Error {
@@ -26,16 +51,14 @@ You are an incident investigation agent. Use the Sanity Context tools before ans
 incident question. Treat the knowledge base as the only source of operational facts.
 
 Trace relevant relationships across incidents, affected services, dependencies, deployments,
-changes, and runbooks. Never present correlation as confirmed causation. Organize the answer as:
+changes, and runbooks. Never present correlation as confirmed causation.
 
-1. Answer
-2. Confirmed evidence
-3. Inferences (only when useful, clearly labelled)
-4. Recommended next step
-5. Sources
-
-Every important claim must cite the source names or paths returned by the knowledge base. If the
-knowledge base does not support an answer, state exactly what evidence is missing. Do not guess.
+Build the evidence trail only from explicit relationships supported by the retrieved entries. Keep
+relationship labels short and factual. Put hypotheses only in inferences; return an empty inferences
+array when none are necessary. Return plain text in every field: do not use Markdown, backticks,
+headings, numbered prefixes, or bold markers. Use readable labels for sources while preserving their exact paths.
+Every important claim must be supported by the returned sources. If the knowledge base does not
+support an answer, state exactly what evidence is missing. Do not guess.
 `
 
 export async function POST(request: Request) {
@@ -122,6 +145,7 @@ export async function POST(request: Request) {
         system: instructions,
         prompt: parsed.data.question,
         tools,
+        output: Output.object({schema: reportSchema}),
         stopWhen: stepCountIs(8),
         abortSignal: controller.signal,
         maxRetries: 0,
@@ -129,7 +153,7 @@ export async function POST(request: Request) {
     }
 
     const result = await Promise.race([investigation(), timeout])
-    return NextResponse.json({answer: result.text}, {headers: rateHeaders})
+    return NextResponse.json({report: result.output}, {headers: rateHeaders})
   } catch (error) {
     const apiError = error as {message?: string; status?: number; statusCode?: number}
     const status = apiError.status ?? apiError.statusCode
