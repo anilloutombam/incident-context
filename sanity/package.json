@@ -9,6 +9,7 @@
     "deploy": "sanity deploy",
     "deploy-graphql": "sanity graphql deploy",
     "dev": "sanity dev",
+    "seed:demo": "sanity exec scripts/seedDemoData.ts --with-user-token",
     "start": "sanity start"
   },
   "keywords": [

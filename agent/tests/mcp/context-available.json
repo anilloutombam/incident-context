@@ -1,0 +1,12 @@
+{
+  "name": "Sanity Context returns the knowledge base outline",
+  "call": {
+    "tool": "initial_context",
+    "args": {}
+  },
+  "timeoutMs": 10000,
+  "expect": {
+    "outcome": "success",
+    "maxDurationMs": 10000
+  }
+}
