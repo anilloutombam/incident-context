@@ -43,31 +43,47 @@ used to produce the answer.
 
 ## Architecture
 
-```text
-Next.js interface
-       │
-       ▼
-Gemini investigation agent
-       │
-       ▼
-Sanity Context MCP
-       │
-       ▼
-Sanity Knowledge Base
-       │
-       ▼
-Services · Deployments · Changes · Runbooks · Incidents
+```mermaid
+flowchart LR
+    User[Incident question] --> UI[Next.js interface]
+    UI -->|POST /api/chat| API[Next.js API]
+    API --> Loop[AI SDK agent loop]
+    Loop <-->|model requests| Gemini[Gemini 3.5 Flash-Lite]
+    Loop <-->|MCP tool calls| MCP[Sanity Context MCP]
+
+    Content[Sanity Content Lake<br/>Services · Deployments · Changes<br/>Runbooks · Incidents]
+    Content -->|builds| KB[Sanity Knowledge Base]
+    KB -->|serves cited entries| MCP
+
+    Loop --> Report[Zod-validated report]
+    Report -->|JSON response| UI
+    UI --> Output[Evidence trail · Confirmed evidence<br/>Inferences · Next step · Sources]
 ```
+
+Sanity Context is read-only. The organization token and Gemini key remain on the server, and the
+browser receives only the validated investigation report.
 
 The content model captures these relationships:
 
-```text
-Service    → depends on → Service
-Deployment → belongs to → Service
-Change     → modifies   → Service
-Incident   → affects    → Service
-Incident   → relates to → Deployment, Change, Runbook
-Runbook    → applies to → Service and version
+```mermaid
+classDiagram
+    direction LR
+
+    class Service
+    class Deployment
+    class Change
+    class Runbook
+    class Incident
+
+    Service "0..*" --> "0..*" Service : depends on
+    Deployment "0..*" --> "1" Service : belongs to
+    Deployment "0..*" --> "0..*" Change : includes
+    Change "0..*" --> "1" Service : modifies
+    Runbook "0..*" --> "1" Service : applies to
+    Incident "0..*" --> "1..*" Service : affects
+    Incident "0..*" --> "0..*" Deployment : related deployments
+    Incident "0..*" --> "0..*" Change : related changes
+    Incident "0..*" --> "0..1" Runbook : related runbook
 ```
 
 ## Demo scenarios
