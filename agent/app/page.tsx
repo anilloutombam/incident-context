@@ -10,6 +10,8 @@ const starterQuestions = [
   'Compare INC-142 and INC-208.',
 ]
 
+const MAX_QUESTION_LENGTH = 500
+
 const progressSteps = [
   {after: 0, label: 'Connecting to the knowledge base'},
   {after: 2, label: 'Finding relevant incident records'},
@@ -24,7 +26,14 @@ export default function Home() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [elapsed, setElapsed] = useState(0)
+  const [health, setHealth] = useState<'checking' | 'ready' | 'degraded'>('checking')
   const reportRef = useRef<HTMLElement>(null)
+
+  useEffect(() => {
+    fetch('/api/health', {cache: 'no-store'})
+      .then((response) => setHealth(response.ok ? 'ready' : 'degraded'))
+      .catch(() => setHealth('degraded'))
+  }, [])
 
   useEffect(() => {
     if (!loading) return
@@ -51,8 +60,19 @@ export default function Home() {
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({question: prompt}),
       })
-      const data = (await response.json()) as {answer?: string; error?: string}
-      if (!response.ok) throw new Error(data.error || 'The investigation failed.')
+      const data = (await response.json()) as {answer?: string; error?: string; retryAt?: string}
+      if (!response.ok) {
+        const resetTime = data.retryAt
+          ? new Date(data.retryAt).toLocaleTimeString([], {
+              hour: 'numeric',
+              minute: '2-digit',
+              second: '2-digit',
+            })
+          : null
+        throw new Error(
+          `${data.error || 'The investigation failed.'}${resetTime ? ` Available again around ${resetTime}.` : ''}`,
+        )
+      }
       setAnswer(data.answer || 'No answer was returned.')
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'The investigation failed.')
@@ -62,56 +82,87 @@ export default function Home() {
   }
 
   return (
-    <main>
-      <section className="hero">
-        <div className="product">
-          <span className="product-mark">IC</span>
+    <main className="app-shell">
+      <header className="topbar">
+        <div className="brand">
+          <span className="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M5 7.5h5v9H5zM14 4h5v16h-5z" /></svg>
+          </span>
           <div>
             <h1>Incident Context</h1>
-            <p>Sanity-backed incident investigation</p>
+            <p>Operations</p>
           </div>
         </div>
-        <p className="lede">Structured context · Source-linked answers</p>
-      </section>
+        <div className="topbar-meta">
+          <span className="environment">production</span>
+          <span className={`system-status ${health}`}>
+            <i /> {health === 'checking' ? 'Checking systems' : health === 'ready' ? 'Systems ready' : 'Configuration issue'}
+          </span>
+        </div>
+      </header>
 
       <section className="workspace">
-        <div className="question-panel">
-          <div className="panel-heading">
-            <span>Investigation</span>
-            <span className="status"><i /> Ready</span>
+        <aside className="query-panel">
+          <div className="query-intro">
+            <span className="section-label">New investigation</span>
+            <h2>Ask about an incident</h2>
+            <p>Answers are grounded in linked services, changes, deployments, and runbooks.</p>
           </div>
 
           <form onSubmit={ask}>
-            <label htmlFor="question">Ask about an incident</label>
+            <label htmlFor="question">Question</label>
             <textarea
               id="question"
               value={question}
               onChange={(event) => setQuestion(event.target.value)}
+              onKeyDown={(event) => {
+                if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+                  event.preventDefault()
+                  event.currentTarget.form?.requestSubmit()
+                }
+              }}
               rows={4}
+              maxLength={MAX_QUESTION_LENGTH}
               placeholder="What changed before INC-208?"
             />
+            <div className="question-meta">
+              <span><kbd>⌘</kbd><kbd>↵</kbd> to run</span>
+              <span>{question.length}/{MAX_QUESTION_LENGTH}</span>
+            </div>
             <button type="submit" disabled={loading}>
-              {loading ? 'Tracing evidence…' : 'Investigate'}
+              {loading ? <><i className="spinner" /> Investigating</> : 'Run investigation'}
             </button>
           </form>
 
           <div className="starters">
-            <p>Try a focused question</p>
+            <p>Examples</p>
             {starterQuestions.map((starter) => (
               <button key={starter} type="button" onClick={() => setQuestion(starter)}>
-                {starter}
+                <span>{starter}</span><i>↗</i>
               </button>
             ))}
           </div>
-        </div>
+          <footer className="query-footer">Sanity Context MCP · Gemini</footer>
+        </aside>
 
-        <article className="answer-panel" aria-live="polite">
-          <div className="panel-heading"><span>Evidence report</span><span>Facts · Inferences · Sources</span></div>
+        <article className="report-panel" aria-live="polite">
+          <header className="report-header">
+            <div>
+              <span className="section-label">Evidence report</span>
+              <span className="report-subtitle">Facts, inferences, and sources</span>
+            </div>
+            <span className={`report-state ${loading ? 'running' : error ? 'failed' : answer ? 'complete' : ''}`}>
+              {loading ? 'Running' : error ? 'Needs attention' : answer ? 'Complete' : 'No report'}
+            </span>
+          </header>
           <section className="report-scroll" ref={reportRef}>
           {!answer && !error && !loading && (
             <div className="empty">
-              <h2>Ready to investigate</h2>
-              <p>Choose a question or enter your own. The report will keep facts separate from inference.</p>
+              <span className="empty-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M4 5h16M4 12h10M4 19h7" /></svg>
+              </span>
+              <h2>No investigation yet</h2>
+              <p>Enter a focused incident question. The report will separate confirmed evidence from inference and cite its sources.</p>
             </div>
           )}
           {loading && (
@@ -128,7 +179,14 @@ export default function Home() {
               <p>This can take a few seconds while sources are retrieved and checked.</p>
             </div>
           )}
-          {error && <div className="error">{error}</div>}
+          {error && (
+            <div className="error">
+              <span>Error</span>
+              <h2>Investigation could not complete</h2>
+              <p>{error}</p>
+              <button type="button" onClick={() => setError('')}>Dismiss</button>
+            </div>
+          )}
           {answer && (
             <div className="answer">
               <ReactMarkdown>{answer}</ReactMarkdown>
