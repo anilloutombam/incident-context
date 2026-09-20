@@ -1,0 +1,12 @@
+{
+  "name": "MCP transport loss fails within the timeout budget",
+  "call": {
+    "tool": "disconnect",
+    "args": {}
+  },
+  "timeoutMs": 1000,
+  "expect": {
+    "outcome": "error",
+    "maxDurationMs": 1500
+  }
+}

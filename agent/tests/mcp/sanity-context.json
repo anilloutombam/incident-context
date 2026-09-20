@@ -1,0 +1,10 @@
+{
+  "adapter": "mcp",
+  "config": {
+    "transport": "http",
+    "url": "https://api.sanity.io/v1/context/organizations/o2xc2wce8/mcp/incident-context-agent",
+    "headerEnv": {
+      "Authorization": "SANITY_CONTEXT_AUTHORIZATION"
+    }
+  }
+}

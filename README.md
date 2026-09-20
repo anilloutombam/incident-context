@@ -84,19 +84,32 @@ What evidence suggests retry behavior may be relevant?
 
 The agent will connect the current incident with deployments, configuration changes, service dependencies, historical incidents, and applicable runbooks.
 
-## Planned Stack
+## Stack
 
 - TypeScript
 - Next.js
 - Sanity
 - Sanity Knowledge Base
 - Sanity Context MCP
+- Vercel AI SDK
+- Google Gemini
+- MCP Failure Lab
 
-## Status
+## Local development
 
-Early development.
+The Sanity Studio lives in `sanity/` and the incident investigation agent lives in `agent/`.
 
-The first milestone is establishing the structured Sanity content model and the `INC-208` investigation dataset before building the agent and user interface.
+Copy `agent/.env.example` to `agent/.env.local`, add the server-side credentials, then run:
+
+```text
+cd agent
+pnpm install
+pnpm dev
+```
+
+Run the published MCP Failure Lab compatibility check from `agent/` with `pnpm test:mcp`. The test
+runner reads `SANITY_ORGANIZATION_TOKEN` from the local environment file and constructs the bearer
+header without storing a second copy of the token.
 
 ## License
 

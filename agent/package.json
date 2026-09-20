@@ -1,0 +1,32 @@
+{
+  "name": "incident-context-agent",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@11.16.0",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "test:mcp": "pnpm test:mcp:live && pnpm test:mcp:faults",
+    "test:mcp:live": "node --env-file=.env scripts/runMcpTest.mjs",
+    "test:mcp:faults": "node scripts/runMcpFaults.mjs"
+  },
+  "dependencies": {
+    "@ai-sdk/google": "latest",
+    "@ai-sdk/mcp": "latest",
+    "ai": "latest",
+    "next": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "react-markdown": "latest",
+    "zod": "latest"
+  },
+  "devDependencies": {
+    "@types/node": "latest",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "mcp-failure-lab": "^0.10.0",
+    "typescript": "latest"
+  }
+}
